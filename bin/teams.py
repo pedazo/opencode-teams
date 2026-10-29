@@ -188,6 +188,43 @@ def select_team(args, registry, create=False):
     return name
 
 
+def display_model_selection(selection):
+    if selection is None:
+        return "inherit session model; reasoning: no variant"
+    model, separator, reasoning = selection.partition("#")
+    return f"{model}; reasoning: {reasoning if separator else 'no variant'}"
+
+
+def choose_agents(profile):
+    print("Agents and current model/reasoning:")
+    for index, role in enumerate(ROLES, 1):
+        selection = profile["models"].get(role)
+        print(f"  {index}. {role} — current model: {display_model_selection(selection)}")
+    print(f"  {len(ROLES) + 1}. all agents")
+    answer = input("Agents (comma-separated numbers or role names; 'all'; 0/q/quit cancels): ").strip()
+    if answer.lower() in ("0", "q", "quit"):
+        raise catalog.Cancelled()
+    if answer.lower() == "all" or answer == str(len(ROLES) + 1):
+        return list(ROLES)
+    values = [value.strip() for value in answer.split(",")]
+    if not answer or any(not value for value in values):
+        raise ValueError("Select one or more agents by number or role name.")
+    if any(value.lower() == "all" or value == str(len(ROLES) + 1) for value in values):
+        raise ValueError("Select 'all' by itself.")
+    selected = set()
+    for value in values:
+        if value.isdigit():
+            index = int(value)
+            if not 1 <= index <= len(ROLES):
+                raise ValueError(f"Invalid agent number: {value}")
+            selected.add(ROLES[index - 1])
+        elif value in ROLES:
+            selected.add(value)
+        else:
+            raise ValueError(f"Unknown agent role: {value}")
+    return [role for role in ROLES if role in selected]
+
+
 def install(args, registry):
     if args.all_teams:
         if args.team:
@@ -246,8 +283,7 @@ def configure(args, registry):
             raise ValueError("Unknown agent role.")
     else:
         args.interactive = True
-        selected = choose("Agent role: ", list(ROLES) + ["all"])
-        roles = list(ROLES) if selected == "all" else [selected]
+        roles = choose_agents(profile)
     if args.inherit:
         if args.model or args.variant:
             raise ValueError("--inherit cannot be combined with --model or --variant.")
@@ -255,10 +291,18 @@ def configure(args, registry):
     else:
         models = catalog.discover_models(args)
         args.interactive = not args.model or args.interactive
+        if args.interactive and not args.model and not args.provider:
+            provider = catalog.choose_provider(models)
+            models = {model: variants for model, variants in models.items()
+                      if model.split("/", 1)[0] == provider}
         model = catalog.choose_model(args, list(models))
         variant = catalog.choose_variant(args, model, models[model])
         selection = model + ("#" + variant if variant else "")
-    print(f"team-{name}: {', '.join(roles)} -> {selection or 'inherit session model'}")
+    if selection is None:
+        selected_description = "inherit session model; reasoning: no variant"
+    else:
+        selected_description = display_model_selection(selection)
+    print(f"team-{name}: {', '.join(roles)} -> {selected_description}")
     if args.interactive and not catalog.confirm_interactive():
         raise catalog.Cancelled()
     for role in roles:

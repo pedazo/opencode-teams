@@ -122,16 +122,60 @@ class TeamsTest(unittest.TestCase):
     def test_interactive_wizard(self):
         self.deploy()
         with patch.object(teams.catalog, "discover_models", return_value={"openai/sol": ("high", "low")}):
-            self.assertEqual(self.run_cli(["models"], inputs=["1", "master", "1", "2", "yes"]), 0)
+            self.assertEqual(self.run_cli(["models"], inputs=["1", "master", "1", "1", "2", "yes"]), 0)
         profile = teams.load_registry(self.root)["teams"]["openai"]
         self.assertEqual(profile["models"]["master"], "openai/sol#high")
+
+    def test_interactive_all_and_role_name_agent_selection(self):
+        with patch("builtins.input", return_value="all"), redirect_stdout(io.StringIO()):
+            self.assertEqual(teams.choose_agents(self.profile), list(teams.ROLES))
+        with patch("builtins.input", return_value="master,3"), redirect_stdout(io.StringIO()):
+            self.assertEqual(teams.choose_agents(self.profile), ["master", "planner"])
+
+    def test_interactive_subset_provider_filter_and_current_selections(self):
+        self.profile["models"] = {
+            "planner": "anthropic/claude#low",
+            "reviewer": "openai/sol",
+        }
+        self.deploy()
+        models = {"anthropic/claude": ("low",), "openai/sol": ("high",)}
+        output = io.StringIO()
+        prompts = []
+        answers = iter(["1,3,5", "2", "1", "1", "yes"])
+
+        def respond(prompt):
+            prompts.append(prompt)
+            return next(answers)
+
+        with patch.object(teams, "ROOT", self.root):
+            with patch.object(teams.catalog, "discover_models", return_value=models), patch(
+                    "builtins.input", side_effect=respond), redirect_stdout(output):
+                self.assertEqual(teams.main(["models", "--team", "openai"]), 0)
+        profile = teams.load_registry(self.root)["teams"]["openai"]
+        self.assertEqual(profile["models"]["master"], "openai/sol")
+        self.assertEqual(profile["models"]["planner"], "openai/sol")
+        self.assertEqual(profile["models"]["developer"], "openai/sol")
+        self.assertEqual(profile["models"]["reviewer"], "openai/sol")
+        text = output.getvalue()
+        for index, role in enumerate(teams.ROLES, 1):
+            self.assertIn(f"{index}. {role} — current model:", text)
+        self.assertIn("current model: inherit session model; reasoning: no variant", text)
+        self.assertIn("current model: anthropic/claude; reasoning: low", text)
+        self.assertIn("current model: openai/sol; reasoning: no variant", text)
+        self.assertIn("1. openai/sol", text)
+        self.assertNotIn("1. anthropic/claude", text)
+        self.assertIn("team-openai: master, planner, developer -> openai/sol; reasoning: no variant", text)
+        self.assertLess(prompts.index("Provider ID or number (0/q/quit cancels): "),
+                        prompts.index("Model ID or number (0/q/quit cancels): "))
+        self.assertLess(prompts.index("Reasoning variant ID or number (blank for no variant): "),
+                        prompts.index("Apply changes? [y/N]: "))
 
     def test_cancel_leaves_registry_and_agents_unchanged(self):
         self.deploy()
         original = (self.root / "registry.json").read_bytes()
         master = teams.managed_paths(self.target, "openai")[0].read_bytes()
         with patch.object(teams.catalog, "discover_models", return_value={"openai/sol": ("high",)}):
-            self.assertEqual(self.run_cli(["models", "--team", "openai"], inputs=["master", "1", "2", "no"]), 0)
+            self.assertEqual(self.run_cli(["models", "--team", "openai"], inputs=["master", "1", "1", "2", "no"]), 0)
         self.assertEqual((self.root / "registry.json").read_bytes(), original)
         self.assertEqual(teams.managed_paths(self.target, "openai")[0].read_bytes(), master)
 

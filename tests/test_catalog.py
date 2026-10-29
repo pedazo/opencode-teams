@@ -59,6 +59,14 @@ class CatalogTest(unittest.TestCase):
         self.args.provider = "other"
         self.assertEqual(self.discover(), {})
 
+    def test_choose_provider_by_number(self):
+        models = {"anthropic/claude": (), "openai/sol": ("high",)}
+        output = io.StringIO()
+        with patch("builtins.input", return_value="2"), redirect_stdout(output):
+            self.assertEqual(catalog.choose_provider(models), "openai")
+        self.assertIn("1. anthropic", output.getvalue())
+        self.assertIn("2. openai", output.getvalue())
+
     def test_numeric_model_and_variant(self):
         with patch("builtins.input", side_effect=["1", "2"]), redirect_stdout(io.StringIO()):
             self.assertEqual(catalog.choose_model(self.args, ["openai/sol"]), "openai/sol")
@@ -81,6 +89,12 @@ class CatalogTest(unittest.TestCase):
     def test_no_variant_noninteractive(self):
         self.args.interactive = False
         self.assertIsNone(catalog.choose_variant(self.args, "openai/sol", ("high",)))
+
+    def test_no_variants_are_explicit_in_interactive_flow(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertIsNone(catalog.choose_variant(self.args, "openai/sol", ()))
+        self.assertIn("Reasoning variant: no variant available for openai/sol", output.getvalue())
 
 
 if __name__ == "__main__":

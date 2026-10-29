@@ -17,7 +17,7 @@ sh install --team anthropic
 # Or install into a specific project.
 sh install --team patata --scope project --project /path/to/project
 
-# Choose role, discovered model, and model-specific reasoning variant.
+# Choose one or more agents, provider, model, and reasoning variant interactively.
 sh set-models --team openai
 
 # Configure the master too. Use an exact ID and variant from your V2 catalog.
@@ -43,10 +43,17 @@ sh install --team patata --uninstall --forget
 ```
 
 `--dry-run` previews installation, configuration and uninstallation. The model
-wizard confirms before writing; non-interactive options apply directly. `--agent`
-accepts a role and can be repeated. A model-only non-interactive selection removes
-the previous reasoning variant. `--project` on `set-models` selects the catalog
-context; configured models must be available wherever that team is used.
+wizard lists all nine agents with their current model and reasoning variant (or
+explicitly shows inherited model/no variant). Select any subset with comma-separated
+numbers such as `1,3,5`, role names, or `all`. The wizard then selects a provider,
+shows only that provider's enabled models, offers the model's reasoning variants
+(including an explicit no-variant choice), and confirms the complete selection
+before writing. Enter `0`, `q` or `quit` at a selection prompt to cancel without
+changing the profile or installed agents. Non-interactive options apply directly.
+`--agent` accepts a role and can be repeated; `--all` applies to all nine agents.
+A model-only non-interactive selection removes the previous reasoning variant.
+`--project` on `set-models` selects the catalog context; configured models must be
+available wherever that team is used.
 
 ## Launch commands
 

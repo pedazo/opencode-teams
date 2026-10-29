@@ -113,6 +113,21 @@ def discover_models(args):
         time.sleep(0.2)
 
 
+def choose_provider(models):
+    providers = sorted({model.split("/", 1)[0] for model in models})
+    if not providers:
+        raise ConfigError("No providers have enabled models for this project.")
+    print("Providers:")
+    for index, provider in enumerate(providers, 1):
+        print(f"  {index}. {provider}")
+    value = answer("Provider ID or number (0/q/quit cancels): ")
+    if value.isdigit() and 1 <= int(value) <= len(providers):
+        value = providers[int(value) - 1]
+    if value not in providers:
+        raise ConfigError(f"No enabled models for provider: {value}")
+    return value
+
+
 def choose_model(args, models):
     if args.model:
         value = args.model
@@ -133,10 +148,10 @@ def choose_variant(args, model, known):
             raise ConfigError(f"Unknown variant for {model}: {args.variant}")
         return args.variant
     if args.interactive and known:
-        print("  1. no variant")
+        print("  1. no reasoning variant")
         for index, variant in enumerate(known, 2):
             print(f"  {index}. {variant}")
-        value = answer("Variant ID or number (blank for no variant): ")
+        value = answer("Reasoning variant ID or number (blank for no variant): ")
         if not value or value == "1":
             return None
         if value.isdigit() and 2 <= int(value) <= len(known) + 1:
@@ -144,6 +159,8 @@ def choose_variant(args, model, known):
         if value not in known:
             raise ConfigError(f"Unknown variant: {value}")
         return value
+    if args.interactive:
+        print(f"Reasoning variant: no variant available for {model}.")
     return None
 
 
