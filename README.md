@@ -73,7 +73,71 @@ the agent in the agent selector does not apply its configured model in V2.
 These are native OpenCode commands; whether another client exposes those commands
 depends on that client's UI. This installer does not modify OpenChamber.
 
-## Roles
+## Conversational planning
+
+With a team's master active, invoke the shared command:
+
+```text
+/team-plan
+/team-plan Add retry support to background jobs
+/team-plan .plan/2026-11-12-16-35-retry_background_jobs.md
+```
+
+`/team-plan` retains the current agent and model and requires an active
+`team-NAME-master`. Its first instruction checks the active identity; with another
+agent or an unknown identity, it stops before planning or accessing the plan and
+asks the user to select a team master and invoke the command again. This is a
+prompt-level guard, not an OpenCode UI or runtime access restriction.
+New teams cannot use the
+reserved name `plan`; a legacy team with that name can still be listed/uninstalled
+but must be replaced with a differently named team before installing updates.
+
+The user leads brainstorming; the master suggests and asks focused questions.
+The team's explorer and planner can support repository investigation and complex
+drafts. The master integrates their results and owns the canonical document.
+Ask for a draft to create a Markdown file in `.plan/`, named
+`YYYY-MM-DD-HH-mm-short_english_title.md` using local creation time. Existing
+files start in draft unless another phase is requested; files outside `.plan/`
+are preserved and copied into it as the working plan. All persisted content is
+English; conversation and explanations use the user's language.
+
+Ask naturally to change phase:
+
+Every planning response starts with one compact inline-code header in the
+user's language: the actual phase, active plan basename when present (otherwise
+no file), and brief relevant next actions. For example,
+`Brainstorming · Sin archivo · Opciones: borrador / fases`. Ask for `fases` (or
+equivalent) to see all phases and the route to implementation. No invented
+file/phase, duplicate footer header, HTML or italics. If the required master
+check rejects the agent, stop without implying planning started; the header
+applies only after that check passes.
+
+- **Brainstorming:** explore the idea without a questionnaire.
+- **Draft:** prepare or edit the canonical file, grounded in the repository.
+- **Guided review:** explain one section at a time and wait for understanding,
+  approval or changes. Available at any time, including after independent review.
+- **Independent review:** fresh `team-plan-auditor` and `team-plan-reader`
+  sessions inspect only the plan and repository, not the drafting conversation.
+  The master checks and groups findings, then resolves them with the user.
+- **Ready:** the user can declare readiness at any time, skipping other phases.
+  Asking to implement also authorizes implementation; readiness alone does not.
+
+A small `status`/`next` YAML header, section approval checkboxes and concise open
+questions/review dispositions allow resuming from the file. Changes invalidate
+affected approvals. Skipped or unavailable reviews are recorded honestly rather
+than blocking readiness. `.plan/` is not automatically added to Git ignore rules.
+
+The command and two read-only reviewers are shared across installed teams at
+each destination. Reviewers inherit the invoking model and are not members of
+the nine-role model profiles. They are removed only when the last registered
+team at that destination is uninstalled. Shared assets carry an ownership marker;
+installation refuses conflicting unmarked files. As with team templates, manual
+edits to marked managed files are overwritten on update.
+
+The workflow is prompt-driven. Fresh subagent support is needed for independent
+review; unavailable review is reported and never described as completed.
+
+## Team roles
 
 - `master`: local development and optional coordination.
 - `explorer`: read-only repository reconnaissance.
@@ -85,8 +149,8 @@ depends on that client's UI. This installer does not modify OpenChamber.
 - `verifier`: focused tests, lint, builds and other checks.
 - `technical-writer`: documentation aligned with actual behavior.
 
-Agent IDs use `team-NAME-ROLE`. Each master can delegate only to its own eight
-specialists. Task approval, credential handling, Git publication and
+Agent IDs use `team-NAME-ROLE`. Each master can delegate to its own eight
+specialists and the two shared independent plan reviewers. Task approval, credential handling, Git publication and
 no-further-delegation rules apply to every team.
 
 ## Single source of truth
@@ -94,6 +158,7 @@ no-further-delegation rules apply to every team.
 - `templates/`: role-named prompts (`master.md`, `explorer.md`, etc.). The
   `{{team}}` placeholder resolves to the selected team's prefix in internal agent
   references and permissions. Edit these templates to change behavior centrally.
+  `templates/commands/` and `templates/agents/` contain shared planning assets.
 - `registry.json`: created on the first real operation. Stores each team's model
   selections, registered installation scopes/destinations and template revision.
   Keep this file to preserve your profiles. It contains no provider credentials.
@@ -107,8 +172,9 @@ The same profile can be installed in several destinations. Model changes rewrite
 all registered installations of that team, also refreshing central behavior.
 
 Reinstallation **overwrites** installed files without preserving manual edits or
-creating backups. Only the selected team's nine agents and its command are
-managed; other agents and OpenCode configuration are untouched. Do not manage the
+creating backups. The selected team's nine agents and its command, plus the
+three shared planning assets, are managed; other agents and OpenCode configuration
+are untouched. Do not manage the
 same installation from multiple copies of this project. Avoid installing the same
 team globally and locally with different external configurations, since OpenCode
 merges definitions by ID.

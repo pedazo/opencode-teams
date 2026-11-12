@@ -21,6 +21,11 @@ ROLES = (
     "master", "explorer", "planner", "quick-fixer", "developer",
     "operator", "reviewer", "verifier", "technical-writer",
 )
+SHARED_TEMPLATES = (
+    "commands/team-plan.md",
+    "agents/team-plan-auditor.md",
+    "agents/team-plan-reader.md",
+)
 
 
 def team_name(value):
@@ -90,6 +95,8 @@ def template_revision(root):
     digest = hashlib.sha256()
     for role in ROLES:
         digest.update((root / "templates" / f"{role}.md").read_bytes())
+    for relative in SHARED_TEMPLATES:
+        digest.update((root / "templates" / relative).read_bytes())
     return digest.hexdigest()
 
 
@@ -117,6 +124,8 @@ def managed_paths(target, name):
 
 
 def installation_changes(root, name, profile, targets):
+    if name == "plan":
+        raise ValueError("Team name 'plan' conflicts with /team-plan; uninstall it and choose another name.")
     changes = {}
     revision = template_revision(root)
     for target in targets:
@@ -124,6 +133,11 @@ def installation_changes(root, name, profile, targets):
         for role, path in zip(ROLES, paths):
             changes[path] = render_agent(root, name, role, profile["models"])
         changes[paths[-1]] = render_command(name, profile["models"])
+        for relative in SHARED_TEMPLATES:
+            path = Path(target["config_dir"]) / relative
+            if path.exists() and b"<!-- Managed by named-teams: shared planning -->" not in path.read_bytes():
+                raise ValueError(f"Shared planning file conflicts with an unmanaged file: {path}")
+            changes[path] = (root / "templates" / relative).read_bytes()
         target["revision"] = revision
     return changes
 
@@ -184,6 +198,8 @@ def select_team(args, registry, create=False):
     if name not in registry["teams"]:
         if not create:
             raise ValueError(f"Team not registered: {name}")
+        if name == "plan":
+            raise ValueError("Team name 'plan' is reserved for /team-plan; choose another name.")
         registry["teams"][name] = {"models": {}, "targets": []}
     return name
 
@@ -226,6 +242,8 @@ def choose_agents(profile):
 
 
 def install(args, registry):
+    previous_destinations = {t["config_dir"] for p in registry["teams"].values()
+                             for t in p["targets"]}
     if args.all_teams:
         if args.team:
             raise ValueError("Use --team or --all-teams, not both.")
@@ -267,6 +285,13 @@ def install(args, registry):
                 if not any(t["config_dir"] == target["config_dir"] for t in profile["targets"]):
                     profile["targets"].append(target)
             changes.update(installation_changes(ROOT, name, profile, profile["targets"]))
+    remaining_destinations = {t["config_dir"] for p in registry["teams"].values()
+                              for t in p["targets"]}
+    for destination in previous_destinations - remaining_destinations:
+        for relative in SHARED_TEMPLATES:
+            path = Path(destination) / relative
+            if path.is_file() and b"<!-- Managed by named-teams: shared planning -->" in path.read_bytes():
+                changes[path] = None
     transact(ROOT, registry, changes, args.dry_run)
 
 

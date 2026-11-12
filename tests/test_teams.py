@@ -62,7 +62,7 @@ class TeamsTest(unittest.TestCase):
 
     def test_templates_are_named_by_role(self):
         self.assertEqual(
-            {path.name for path in (self.root / "templates").iterdir()},
+            {path.name for path in (self.root / "templates").glob("*.md")},
             {f"{role}.md" for role in teams.ROLES},
         )
 
@@ -87,6 +87,73 @@ class TeamsTest(unittest.TestCase):
             teams.transact(self.root, self.registry, changes, dry_run=True)
         self.assertFalse((self.root / "registry.json").exists())
         self.assertFalse(Path(self.target["config_dir"]).exists())
+
+    def test_shared_plan_assets_inherit_agent_and_model(self):
+        self.profile["models"] = {"master": "openai/sol#high"}
+        self.deploy()
+        for relative in teams.SHARED_TEMPLATES:
+            content = (Path(self.target["config_dir"]) / relative).read_text()
+            self.assertNotIn("model:", content)
+            self.assertNotIn("{{team}}", content)
+        command = (Path(self.target["config_dir"]) / "commands/team-plan.md").read_text()
+        self.assertNotIn("\nagent:", command.split("---")[1])
+        self.assertIn("subagent: false", command)
+        self.assertIn("$ARGUMENTS", command)
+
+    def test_plan_prompt_response_header_contract(self):
+        command = (self.root / "templates/commands/team-plan.md").read_text()
+        check = command.index("## Required agent check")
+        header = command.index("## Response header")
+        conversation = command.index("## Conversation and transitions")
+        self.assertLess(check, header)
+        self.assertLess(header, conversation)
+        section = command[header:conversation]
+        for phrase in (
+            "every planning response", "user's language", "actual current",
+            "basename", "otherwise say no file", "natural language",
+            "fases", "all phases", "Do not duplicate the header",
+            "Do not use HTML", "rejected agent check is not a planning",
+        ):
+            self.assertIn(phrase, section)
+        self.assertIn("`Brainstorming · Sin archivo · Opciones: borrador / fases`", section)
+
+    def test_shared_assets_last_team_per_destination(self):
+        for name, project in (("openai", "one"), ("anthropic", "one"), ("openai", "two")):
+            self.assertEqual(self.run_cli(["install", "--team", name, "--scope", "project",
+                                           "--project", str(self.root / project)]), 0)
+        self.assertEqual(self.run_cli(["install", "--team", "openai", "--uninstall"]), 0)
+        for relative in teams.SHARED_TEMPLATES:
+            self.assertTrue((self.root / "one/.opencode" / relative).exists())
+            self.assertFalse((self.root / "two/.opencode" / relative).exists())
+        self.assertEqual(self.run_cli(["install", "--team", "anthropic", "--uninstall"]), 0)
+        for relative in teams.SHARED_TEMPLATES:
+            self.assertFalse((self.root / "one/.opencode" / relative).exists())
+
+    def test_shared_template_refresh_and_revision(self):
+        self.deploy()
+        before = teams.template_revision(self.root)
+        template = self.root / "templates/commands/team-plan.md"
+        template.write_text(template.read_text() + "\nUpdated planning behavior.\n")
+        self.assertNotEqual(teams.template_revision(self.root), before)
+        self.assertEqual(self.run_cli(["install", "--all-teams"]), 0)
+        self.assertIn("Updated planning behavior", (Path(self.target["config_dir"]) /
+                                                  "commands/team-plan.md").read_text())
+
+    def test_unmanaged_shared_file_is_preserved(self):
+        path = Path(self.target["config_dir"]) / "commands/team-plan.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("User command")
+        self.assertEqual(self.run_cli(["install", "--team", "openai", "--scope", "project",
+                                       "--project", str(self.root / "project")]), 2)
+        self.assertEqual(path.read_text(), "User command")
+        self.assertFalse((self.root / "registry.json").exists())
+
+    def test_legacy_plan_team_can_be_uninstalled(self):
+        self.registry["teams"]["plan"] = self.registry["teams"].pop("openai")
+        (self.root / "registry.json").write_text(json.dumps(self.registry))
+        self.assertEqual(self.run_cli(["list"]), 0)
+        self.assertEqual(self.run_cli(["install", "--team", "plan", "--uninstall", "--forget"]), 0)
+        self.assertEqual(self.run_cli(["install", "--team", "plan"]), 2)
 
     def test_update_overwrites_and_preserves_models(self):
         self.profile["models"] = {"master": "openai/sol#high", "reviewer": "anthropic/claude#low"}

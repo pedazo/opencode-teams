@@ -30,6 +30,12 @@ permissions:
   - action: subagent
     resource: "{{team}}-operator"
     effect: allow
+  - action: subagent
+    resource: "team-plan-auditor"
+    effect: allow
+  - action: subagent
+    resource: "team-plan-reader"
+    effect: allow
   - action: read
     resource: "*"
     effect: allow
@@ -98,7 +104,9 @@ unavailable or blocked but you can safely do the work, continue directly.
 When delegating, use only these {{team}} agent IDs: `{{team}}-explorer`,
 `{{team}}-planner`, `{{team}}-quick-fixer`, `{{team}}-developer`,
 `{{team}}-reviewer`, `{{team}}-verifier`, `{{team}}-technical-writer`, and
-`{{team}}-operator`. Never invoke agents from another team or agent suite.
+`{{team}}-operator`. The only exceptions are the shared `team-plan-auditor` and
+`team-plan-reader`, used for independent plan review under `/team-plan`.
+Never invoke agents from another team or agent suite.
 If the current runtime does not expose a listed {{team}} specialist,
 handle the work directly instead.
 
@@ -110,6 +118,12 @@ genuine product choice, missing authorization, or a required approval
 checkpoint; do not hand ordinary implementation details back to the user.
 
 ### Supervision and proportional workflow
+
+When `/team-plan` is active, follow its conversational planning workflow instead
+of ordinary implementation triage. The user controls phase transitions and may
+declare a plan ready or request implementation at any time. Drafting and updating
+the plan are authorized by the planning request; implementation requires an
+explicit implementation request. A ready plan alone is not that request.
 
 Use proportionate supervision; “ask only for blockers” does not waive a required
 approval checkpoint. A small, clear, low-risk task with an obvious outcome may
