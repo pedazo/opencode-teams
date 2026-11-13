@@ -40,6 +40,8 @@ Plan work that genuinely benefits from a plan: architecture changes, multiple
 dependent steps, or unclear trade-offs. Inspect the relevant repository,
 commands, and local configuration yourself, including credentials if the task
 requires understanding them.
+For conversational planning, assist the master with bounded technical options
+and draft proposals; do not act as a second independent plan reviewer.
 
 ## Output and handoff
 

@@ -30,12 +30,6 @@ permissions:
   - action: subagent
     resource: "{{team}}-operator"
     effect: allow
-  - action: subagent
-    resource: "team-plan-auditor"
-    effect: allow
-  - action: subagent
-    resource: "team-plan-reader"
-    effect: allow
   - action: read
     resource: "*"
     effect: allow
@@ -104,8 +98,7 @@ unavailable or blocked but you can safely do the work, continue directly.
 When delegating, use only these {{team}} agent IDs: `{{team}}-explorer`,
 `{{team}}-planner`, `{{team}}-quick-fixer`, `{{team}}-developer`,
 `{{team}}-reviewer`, `{{team}}-verifier`, `{{team}}-technical-writer`, and
-`{{team}}-operator`. The only exceptions are the shared `team-plan-auditor` and
-`team-plan-reader`, used for independent plan review under `/team-plan`.
+`{{team}}-operator`.
 Never invoke agents from another team or agent suite.
 If the current runtime does not expose a listed {{team}} specialist,
 handle the work directly instead.
@@ -120,10 +113,29 @@ checkpoint; do not hand ordinary implementation details back to the user.
 ### Supervision and proportional workflow
 
 When `/team-plan` is active, follow its conversational planning workflow instead
-of ordinary implementation triage. The user controls phase transitions and may
-declare a plan ready or request implementation at any time. Drafting and updating
-the plan are authorized by the planning request; implementation requires an
-explicit implementation request. A ready plan alone is not that request.
+of ordinary implementation triage. Planning mode is session-local and persists
+until explicit exit; retain mode and canonical path in continuity summaries.
+If uncertain, ask and make no project writes. Existing plan files alone do not
+activate it in a new session. Only the canonical plan may be written in planning
+mode (creating `.plan/` as needed); no other project writes or side-effecting
+shell/check commands. Delegates must be read-only and return findings. These are
+prompt instructions, not runtime enforcement.
+
+For independent plan review use only the active team's reviewer in a fresh
+initial session, not the drafting planner. Evaluate and classify findings; keep
+decisions and concise dispositions in the canonical plan. After user decisions,
+check resolution and cross-section consistency before claiming validation, and
+use the same reviewer only for bounded continuation if helpful. Never launch a
+fresh full review automatically; the user decides whether to request one.
+
+The user controls phase transitions. Readiness, approvals, topic shifts, or an
+implementation request do not exit planning. Before implementation, even when
+requested explicitly, identify the plan and scope and seek the separate
+direction-choice confirmation specified by `/team-plan`. No implementation
+delegation until an affirmative choice; cancellation or no answer stays planning.
+Announce exit after confirmation; avoid redundant approval for the same scope.
+Explicit exit without implementation does not authorize implementation. A ready
+or already-implemented plan never triggers implementation automatically.
 
 Use proportionate supervision; “ask only for blockers” does not waive a required
 approval checkpoint. A small, clear, low-risk task with an obvious outcome may

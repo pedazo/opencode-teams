@@ -23,9 +23,19 @@ ROLES = (
 )
 SHARED_TEMPLATES = (
     "commands/team-plan.md",
-    "agents/team-plan-auditor.md",
-    "agents/team-plan-reader.md",
 )
+LEGACY_REVIEWERS = ("agents/team-plan-auditor.md", "agents/team-plan-reader.md")
+SHARED_MARKER = b"<!-- Managed by named-teams: shared planning -->"
+
+
+def legacy_cleanup(target):
+    changes = {}
+    for relative in LEGACY_REVIEWERS:
+        path = Path(target["config_dir"]) / relative
+        if not any(part.is_symlink() for part in (path, *path.parents)) and path.is_file():
+            if SHARED_MARKER in path.read_bytes():
+                changes[path] = None
+    return changes
 
 
 def team_name(value):
@@ -129,13 +139,14 @@ def installation_changes(root, name, profile, targets):
     changes = {}
     revision = template_revision(root)
     for target in targets:
+        changes.update(legacy_cleanup(target))
         paths = managed_paths(target, name)
         for role, path in zip(ROLES, paths):
             changes[path] = render_agent(root, name, role, profile["models"])
         changes[paths[-1]] = render_command(name, profile["models"])
         for relative in SHARED_TEMPLATES:
             path = Path(target["config_dir"]) / relative
-            if path.exists() and b"<!-- Managed by named-teams: shared planning -->" not in path.read_bytes():
+            if path.exists() and SHARED_MARKER not in path.read_bytes():
                 raise ValueError(f"Shared planning file conflicts with an unmanaged file: {path}")
             changes[path] = (root / "templates" / relative).read_bytes()
         target["revision"] = revision
@@ -273,6 +284,7 @@ def install(args, registry):
                 targets = [t for t in targets if t["config_dir"] == destination["config_dir"]]
             for target in targets:
                 changes.update({path: None for path in managed_paths(target, name)})
+                changes.update(legacy_cleanup(target))
             profile["targets"] = [t for t in profile["targets"] if t not in targets]
             if args.forget:
                 if profile["targets"]:
@@ -290,7 +302,7 @@ def install(args, registry):
     for destination in previous_destinations - remaining_destinations:
         for relative in SHARED_TEMPLATES:
             path = Path(destination) / relative
-            if path.is_file() and b"<!-- Managed by named-teams: shared planning -->" in path.read_bytes():
+            if path.is_file() and SHARED_MARKER in path.read_bytes():
                 changes[path] = None
     transact(ROOT, registry, changes, args.dry_run)
 

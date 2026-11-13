@@ -81,6 +81,7 @@ With a team's master active, invoke the shared command:
 /team-plan
 /team-plan Add retry support to background jobs
 /team-plan .plan/2026-11-12-16-35-retry_background_jobs.md
+/team-plan resume
 ```
 
 `/team-plan` retains the current agent and model and requires an active
@@ -96,10 +97,32 @@ The user leads brainstorming; the master suggests and asks focused questions.
 The team's explorer and planner can support repository investigation and complex
 drafts. The master integrates their results and owns the canonical document.
 Ask for a draft to create a Markdown file in `.plan/`, named
-`YYYY-MM-DD-HH-mm-short_english_title.md` using local creation time. Existing
-files start in draft unless another phase is requested; files outside `.plan/`
+`YYYY-MM-DD-HH-mm-short_english_title.md` using local creation time. Brainstorming
+does not autosave; a provisional draft can be requested. Existing files resume
+their valid saved status, approvals and next action, or start in draft if status
+is absent or invalid, unless another phase is requested. A natural-language
+request to resume without a path offers a choice of `.plan/` files with title,
+status and next action when available, rather than silently picking the newest;
+if none are available it says so. Files outside `.plan/`
 are preserved and copied into it as the working plan. All persisted content is
 English; conversation and explanations use the user's language.
+
+Planning mode lasts for the session until explicit exit, including across
+readiness, approvals and topic shifts. Existing files do not activate it in a
+new session. The instructions limit writes during planning to the canonical plan
+(and creating `.plan/`), prohibit side-effecting shell commands and checks, and
+require delegates to be read-only. The mode and path should be retained in
+continuity summaries; uncertainty calls for a question, not project writes.
+These are prompt-level instructions, not hard runtime or filesystem guarantees.
+
+Before implementation, even if already requested, the master identifies the
+plan and scope and asks separately for “Yes, implement” or “Continue planning”
+in the user's language, using a direction-choice UI where available. Cancellation
+or no answer stays in planning. An affirmative choice exits planning, which the
+master announces, and authorizes that scope without a redundant approval; it is
+not blanket permission for future scope. Exiting without implementation is not
+implementation approval. A ready or already-implemented plan never starts
+implementation automatically.
 
 Ask naturally to change phase:
 
@@ -116,22 +139,30 @@ applies only after that check passes.
 - **Draft:** prepare or edit the canonical file, grounded in the repository.
 - **Guided review:** explain one section at a time and wait for understanding,
   approval or changes. Available at any time, including after independent review.
-- **Independent review:** fresh `team-plan-auditor` and `team-plan-reader`
-  sessions inspect only the plan and repository, not the drafting conversation.
-  The master checks and groups findings, then resolves them with the user.
+- **Independent review:** a fresh session with the active team's reviewer inspects
+  only the plan and repository, not the drafting conversation. The planner helps
+  draft but is not a second reviewer. The master evaluates and groups findings,
+  proposes fixes or contests/dismisses them with reasons, and asks the user about
+  product, scope, risk or unavailable knowledge. Dispositions and necessary
+  decisions belong in the canonical plan, not a separate report. After decisions,
+  the master checks resolution and cross-section consistency; bounded follow-up
+  with the same reviewer is continuation, not a fresh review. A new full review
+  is never automatic: the user decides, and may request one or guided review even
+  after readiness. Unavailable independent review is reported honestly.
 - **Ready:** the user can declare readiness at any time, skipping other phases.
-  Asking to implement also authorizes implementation; readiness alone does not.
+  Implementation still requires the separate confirmation above.
 
 A small `status`/`next` YAML header, section approval checkboxes and concise open
 questions/review dispositions allow resuming from the file. Changes invalidate
 affected approvals. Skipped or unavailable reviews are recorded honestly rather
 than blocking readiness. `.plan/` is not automatically added to Git ignore rules.
 
-The command and two read-only reviewers are shared across installed teams at
-each destination. Reviewers inherit the invoking model and are not members of
-the nine-role model profiles. They are removed only when the last registered
-team at that destination is uninstalled. Shared assets carry an ownership marker;
-installation refuses conflicting unmarked files. As with team templates, manual
+The command is shared across installed teams at each destination and removed when
+the last registered team there is uninstalled. The team's existing reviewer and
+planner use their own configured models, or inherit the session model
+when unconfigured. The shared command carries an ownership marker; installation
+refuses conflicting unmarked files. Marked legacy shared reviewers are removed
+on install, update, configure or uninstall; unmarked files are preserved. Manual
 edits to marked managed files are overwritten on update.
 
 The workflow is prompt-driven. Fresh subagent support is needed for independent
@@ -150,7 +181,7 @@ review; unavailable review is reported and never described as completed.
 - `technical-writer`: documentation aligned with actual behavior.
 
 Agent IDs use `team-NAME-ROLE`. Each master can delegate to its own eight
-specialists and the two shared independent plan reviewers. Task approval, credential handling, Git publication and
+specialists. Task approval, credential handling, Git publication and
 no-further-delegation rules apply to every team.
 
 ## Single source of truth
@@ -158,7 +189,7 @@ no-further-delegation rules apply to every team.
 - `templates/`: role-named prompts (`master.md`, `explorer.md`, etc.). The
   `{{team}}` placeholder resolves to the selected team's prefix in internal agent
   references and permissions. Edit these templates to change behavior centrally.
-  `templates/commands/` and `templates/agents/` contain shared planning assets.
+  `templates/commands/` contains the shared planning command.
 - `registry.json`: created on the first real operation. Stores each team's model
   selections, registered installation scopes/destinations and template revision.
   Keep this file to preserve your profiles. It contains no provider credentials.
@@ -173,7 +204,7 @@ all registered installations of that team, also refreshing central behavior.
 
 Reinstallation **overwrites** installed files without preserving manual edits or
 creating backups. The selected team's nine agents and its command, plus the
-three shared planning assets, are managed; other agents and OpenCode configuration
+shared planning command, are managed; other agents and OpenCode configuration
 are untouched. Do not manage the
 same installation from multiple copies of this project. Avoid installing the same
 team globally and locally with different external configurations, since OpenCode

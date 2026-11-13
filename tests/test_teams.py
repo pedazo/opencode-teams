@@ -117,6 +117,35 @@ class TeamsTest(unittest.TestCase):
             self.assertIn(phrase, section)
         self.assertIn("`Brainstorming · Sin archivo · Opciones: borrador / fases`", section)
 
+    def test_plan_mode_and_confirmation_instructions(self):
+        command = (self.root / "templates/commands/team-plan.md").read_text()
+        master = (self.root / "templates/master.md").read_text()
+        for phrase in (
+            "session-local planning mode", "compaction summaries",
+            "plan file's existence alone does not activate", "only project file",
+            "side-effecting shell commands", "Every delegate must be explicitly read-only",
+            "ALWAYS ask for a separate confirmation", "OpenChamber `ui` with `awaitAnswer`",
+            "Cancellation, no answer", "announce the exit", "bound to that plan and scope",
+            "Explicit exit without implementation is not implementation approval",
+            "including one already implemented", "Do not autosave",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, command)
+        for phrase in ("session-local", "canonical plan", "side-effecting",
+                       "separate", "prompt instructions, not runtime enforcement"):
+            self.assertIn(phrase, master)
+
+    def test_plan_resume_instructions(self):
+        command = (self.root / "templates/commands/team-plan.md").read_text()
+        for phrase in (
+            "resume its valid saved status", "approval state and next action",
+            "status metadata is absent or invalid", "/team-plan resume",
+            "/team-plan retomar", "in any language", "each plan's title, status and next action",
+            "Do not silently select the newest", "no candidates exist",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, command)
+
     def test_shared_assets_last_team_per_destination(self):
         for name, project in (("openai", "one"), ("anthropic", "one"), ("openai", "two")):
             self.assertEqual(self.run_cli(["install", "--team", name, "--scope", "project",
@@ -138,6 +167,55 @@ class TeamsTest(unittest.TestCase):
         self.assertEqual(self.run_cli(["install", "--all-teams"]), 0)
         self.assertIn("Updated planning behavior", (Path(self.target["config_dir"]) /
                                                   "commands/team-plan.md").read_text())
+
+    def test_independent_review_uses_team_roles(self):
+        command = (self.root / "templates/commands/team-plan.md").read_text()
+        master = (self.root / "templates/master.md").read_text()
+        for phrase in ("team-NAME-reviewer", "fresh session",
+                       "only the canonical plan path", "Do not blindly",
+                       "Never claim fresh", "not as a second independent reviewer",
+                       "accessible evidence, impact", "user-accepted risk",
+                       "cross-section", "never launches automatically",
+                       "do not reopen settled items without new evidence",
+                       "Do not mark validation completed unless it was actually checked"):
+            self.assertIn(phrase, command)
+        self.assertNotIn("team-NAME-planner", command)
+        self.assertNotIn("team-plan-auditor", master)
+        self.assertNotIn("team-plan-reader", master)
+        self.assertEqual(teams.SHARED_TEMPLATES, ("commands/team-plan.md",))
+        self.assertIn("independent plan review", (self.root / "templates/reviewer.md").read_text())
+        self.assertIn("not act as a second independent plan reviewer", (self.root / "templates/planner.md").read_text())
+
+    def test_legacy_migration_all_lifecycle_operations(self):
+        one, two = (self.root / name for name in ("one", "two"))
+        for name, project in (("openai", one), ("openai", two), ("other", one)):
+            self.assertEqual(self.run_cli(["install", "--team", name, "--scope", "project", "--project", str(project)]), 0)
+        def seed(project):
+            agents = project / ".opencode/agents"
+            managed = agents / "team-plan-auditor.md"
+            user = agents / "team-plan-reader.md"
+            managed.write_bytes(teams.SHARED_MARKER + b"\nold")
+            user.write_text("user-owned")
+            return managed, user
+        managed1, user1 = seed(one)
+        managed2, user2 = seed(two)
+        self.assertEqual(self.run_cli(["install", "--team", "openai", "--update"]), 0)
+        for managed, user in ((managed1, user1), (managed2, user2)):
+            self.assertFalse(managed.exists())
+            self.assertEqual(user.read_text(), "user-owned")
+        managed1.write_bytes(teams.SHARED_MARKER)
+        self.assertEqual(self.run_cli(["models", "--team", "other", "--agent", "reviewer", "--inherit"]), 0)
+        self.assertFalse(managed1.exists())
+        managed1.write_bytes(teams.SHARED_MARKER)
+        self.assertEqual(self.run_cli(["install", "--team", "openai", "--uninstall"]), 0)
+        self.assertFalse(managed1.exists())
+        self.assertTrue((one / ".opencode/commands/team-plan.md").exists())
+        self.assertTrue((one / ".opencode/agents/team-other-reviewer.md").exists())
+        self.assertEqual(user1.read_text(), "user-owned")
+        self.assertEqual(user2.read_text(), "user-owned")
+        self.assertEqual(self.run_cli(["install", "--team", "other", "--uninstall"]), 0)
+        self.assertFalse((one / ".opencode/commands/team-plan.md").exists())
+        self.assertEqual(user1.read_text(), "user-owned")
 
     def test_unmanaged_shared_file_is_preserved(self):
         path = Path(self.target["config_dir"]) / "commands/team-plan.md"

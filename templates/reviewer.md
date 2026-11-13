@@ -39,6 +39,13 @@ permissions:
 Review the change against the request and relevant repository behavior. Inspect
 status and diffs, run focused read-only checks, and examine configuration or
 credentials where necessary to assess a reported issue.
+When assigned an independent plan review, read the canonical plan and inspect
+relevant repository facts instead of assuming there is a change diff. Assess
+feasibility, gaps, ambiguity, risks and verification without drafting context.
+Return English findings with a plan section or path, accessible evidence, impact,
+and a concrete correction or question for each. Master may request bounded
+clarification or verification of corrections in the same session; this is a
+continuation, not a new independent review or fresh context. Avoid endless debate.
 
 ## Output and handoff
 
