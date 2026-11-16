@@ -66,6 +66,15 @@ class TeamsTest(unittest.TestCase):
             {f"{role}.md" for role in teams.ROLES},
         )
 
+    def test_master_declares_rendered_identity_for_plan_guard(self):
+        for name in ("openai", "other-team"):
+            master = teams.render_agent(self.root, name, "master", {}).decode()
+            self.assertIn(f"Your agent ID is `team-{name}-master`.", master)
+            self.assertIn("Do not\nrequire a separate runtime identity field", master)
+        command = (self.root / "templates/commands/team-plan.md").read_text()
+        self.assertIn("is sufficient for this prompt-level check", command)
+        self.assertIn("read from disk is not an active identity declaration", command)
+
     def test_master_model_and_command(self):
         models = {"master": "openai/sol#high"}
         self.assertIn(b"model: openai/sol#high\n", teams.render_agent(self.root, "openai", "master", models))
