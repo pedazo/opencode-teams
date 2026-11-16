@@ -23,6 +23,7 @@ ROLES = (
 )
 SHARED_TEMPLATES = (
     "commands/team-plan.md",
+    "skills/team-plan/SKILL.md",
 )
 LEGACY_REVIEWERS = ("agents/team-plan-auditor.md", "agents/team-plan-reader.md")
 SHARED_MARKER = b"<!-- Managed by named-teams: shared planning -->"
@@ -166,7 +167,7 @@ def transact(root, registry, changes, dry_run=False):
         originals[path] = path.read_bytes() if path.exists() else None
         print(f"{'Delete' if content is None else 'Write'} {path}")
     if dry_run:
-        print("Dry run: no agents, commands or registry changed.")
+        print("Dry run: no agents, commands, skills or registry changed.")
         return
     completed = []
     try:

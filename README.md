@@ -89,6 +89,10 @@ With a team's master active, invoke the shared command:
 agent or an unknown identity, it stops before planning or accessing the plan and
 asks the user to select a team master and invoke the command again. This is a
 prompt-level guard, not an OpenCode UI or runtime access restriction.
+The short command explicitly loads the installed `team-plan` skill before planning;
+if loading fails, it stops. The full protocol lives in that skill rather than the
+command prompt. It is not advertised for automatic invocation during ordinary work.
+OpenCode may still display skill tool calls or their contents in its interface.
 New teams cannot use the
 reserved name `plan`; a legacy team with that name can still be listed/uninstalled
 but must be replaced with a differently named team before installing updates.
@@ -157,10 +161,10 @@ questions/review dispositions allow resuming from the file. Changes invalidate
 affected approvals. Skipped or unavailable reviews are recorded honestly rather
 than blocking readiness. `.plan/` is not automatically added to Git ignore rules.
 
-The command is shared across installed teams at each destination and removed when
+The command and skill are shared across installed teams at each destination and removed when
 the last registered team there is uninstalled. The team's existing reviewer and
 planner use their own configured models, or inherit the session model
-when unconfigured. The shared command carries an ownership marker; installation
+when unconfigured. Both shared files carry an ownership marker; installation
 refuses conflicting unmarked files. Marked legacy shared reviewers are removed
 on install, update, configure or uninstall; unmarked files are preserved. Manual
 edits to marked managed files are overwritten on update.
@@ -189,7 +193,8 @@ no-further-delegation rules apply to every team.
 - `templates/`: role-named prompts (`master.md`, `explorer.md`, etc.). The
   `{{team}}` placeholder resolves to the selected team's prefix in internal agent
   references and permissions. Edit these templates to change behavior centrally.
-  `templates/commands/` contains the shared planning command.
+  `templates/commands/` contains the shared planning command and
+  `templates/skills/team-plan/SKILL.md` the planning protocol.
 - `registry.json`: created on the first real operation. Stores each team's model
   selections, registered installation scopes/destinations and template revision.
   Keep this file to preserve your profiles. It contains no provider credentials.
@@ -197,14 +202,14 @@ no-further-delegation rules apply to every team.
 - `bin/opencode_catalog.py`: independent V2 discovery and model/variant selection
   adapter.
 
-Global files go to `$XDG_CONFIG_HOME/opencode/{agents,commands}` (default
-`~/.config/opencode/`); project files go to `PROJECT/.opencode/{agents,commands}`.
+Global files go to `$XDG_CONFIG_HOME/opencode/{agents,commands,skills}` (default
+`~/.config/opencode/`); project files go to `PROJECT/.opencode/{agents,commands,skills}`.
 The same profile can be installed in several destinations. Model changes rewrite
 all registered installations of that team, also refreshing central behavior.
 
 Reinstallation **overwrites** installed files without preserving manual edits or
 creating backups. The selected team's nine agents and its command, plus the
-shared planning command, are managed; other agents and OpenCode configuration
+shared planning command and skill, are managed; other agents and OpenCode configuration
 are untouched. Do not manage the
 same installation from multiple copies of this project. Avoid installing the same
 team globally and locally with different external configurations, since OpenCode

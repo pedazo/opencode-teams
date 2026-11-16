@@ -71,7 +71,7 @@ class TeamsTest(unittest.TestCase):
             master = teams.render_agent(self.root, name, "master", {}).decode()
             self.assertIn(f"Your agent ID is `team-{name}-master`.", master)
             self.assertIn("Do not\nrequire a separate runtime identity field", master)
-        command = (self.root / "templates/commands/team-plan.md").read_text()
+        command = (self.root / "templates/skills/team-plan/SKILL.md").read_text()
         self.assertIn("is sufficient for this prompt-level check", command)
         self.assertIn("read from disk is not an active identity declaration", command)
 
@@ -108,9 +108,46 @@ class TeamsTest(unittest.TestCase):
         self.assertNotIn("\nagent:", command.split("---")[1])
         self.assertIn("subagent: false", command)
         self.assertIn("$ARGUMENTS", command)
+        self.assertIn("successfully load", command)
+        self.assertIn("active installed team master", command)
+        self.assertNotIn("## Independent review", command)
+        skill = (Path(self.target["config_dir"]) / "skills/team-plan/SKILL.md").read_text()
+        self.assertTrue(skill.startswith("---\nname: team-plan\n"))
+        self.assertIn("opencode/autoinvoke: false", skill)
+        self.assertIn(teams.SHARED_MARKER.decode(), skill)
+
+    def test_existing_install_migrates_on_update_and_model_configuration(self):
+        self.deploy()
+        directory = Path(self.target["config_dir"])
+        command = directory / "commands/team-plan.md"
+        skill = directory / "skills/team-plan/SKILL.md"
+        for operation in (["install", "--team", "openai", "--update"],
+                          ["models", "--team", "openai", "--agent", "master", "--inherit"]):
+            command.write_text(teams.SHARED_MARKER.decode() + "\nold full protocol")
+            skill.unlink(missing_ok=True)
+            before = command.read_bytes()
+            self.assertEqual(self.run_cli(operation + ["--dry-run"]), 0)
+            self.assertEqual(command.read_bytes(), before)
+            self.assertFalse(skill.exists())
+            self.assertEqual(self.run_cli(operation), 0)
+            self.assertIn("successfully load", command.read_text())
+            self.assertIn("## Independent review", skill.read_text())
+
+    def test_unmanaged_skill_conflict_and_uninstall_preservation(self):
+        skill = Path(self.target["config_dir"]) / "skills/team-plan/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("user skill")
+        with self.assertRaises(ValueError):
+            teams.installation_changes(self.root, "openai", self.profile, self.profile["targets"])
+        self.assertEqual(skill.read_text(), "user skill")
+        skill.unlink()
+        self.deploy()
+        skill.write_text("user replacement")
+        self.assertEqual(self.run_cli(["install", "--team", "openai", "--uninstall"]), 0)
+        self.assertEqual(skill.read_text(), "user replacement")
 
     def test_plan_prompt_response_header_contract(self):
-        command = (self.root / "templates/commands/team-plan.md").read_text()
+        command = (self.root / "templates/skills/team-plan/SKILL.md").read_text()
         check = command.index("## Required agent check")
         header = command.index("## Response header")
         conversation = command.index("## Conversation and transitions")
@@ -127,7 +164,7 @@ class TeamsTest(unittest.TestCase):
         self.assertIn("`Brainstorming · Sin archivo · Opciones: borrador / fases`", section)
 
     def test_plan_mode_and_confirmation_instructions(self):
-        command = (self.root / "templates/commands/team-plan.md").read_text()
+        command = (self.root / "templates/skills/team-plan/SKILL.md").read_text()
         master = (self.root / "templates/master.md").read_text()
         for phrase in (
             "session-local planning mode", "compaction summaries",
@@ -145,7 +182,7 @@ class TeamsTest(unittest.TestCase):
             self.assertIn(phrase, master)
 
     def test_plan_resume_instructions(self):
-        command = (self.root / "templates/commands/team-plan.md").read_text()
+        command = (self.root / "templates/skills/team-plan/SKILL.md").read_text()
         for phrase in (
             "resume its valid saved status", "approval state and next action",
             "status metadata is absent or invalid", "/team-plan resume",
@@ -170,15 +207,15 @@ class TeamsTest(unittest.TestCase):
     def test_shared_template_refresh_and_revision(self):
         self.deploy()
         before = teams.template_revision(self.root)
-        template = self.root / "templates/commands/team-plan.md"
+        template = self.root / "templates/skills/team-plan/SKILL.md"
         template.write_text(template.read_text() + "\nUpdated planning behavior.\n")
         self.assertNotEqual(teams.template_revision(self.root), before)
         self.assertEqual(self.run_cli(["install", "--all-teams"]), 0)
         self.assertIn("Updated planning behavior", (Path(self.target["config_dir"]) /
-                                                  "commands/team-plan.md").read_text())
+                                                  "skills/team-plan/SKILL.md").read_text())
 
     def test_independent_review_uses_team_roles(self):
-        command = (self.root / "templates/commands/team-plan.md").read_text()
+        command = (self.root / "templates/skills/team-plan/SKILL.md").read_text()
         master = (self.root / "templates/master.md").read_text()
         for phrase in ("team-NAME-reviewer", "fresh session",
                        "only the canonical plan path", "Do not blindly",
@@ -191,7 +228,7 @@ class TeamsTest(unittest.TestCase):
         self.assertNotIn("team-NAME-planner", command)
         self.assertNotIn("team-plan-auditor", master)
         self.assertNotIn("team-plan-reader", master)
-        self.assertEqual(teams.SHARED_TEMPLATES, ("commands/team-plan.md",))
+        self.assertEqual(teams.SHARED_TEMPLATES, ("commands/team-plan.md", "skills/team-plan/SKILL.md"))
         self.assertIn("independent plan review", (self.root / "templates/reviewer.md").read_text())
         self.assertIn("not act as a second independent plan reviewer", (self.root / "templates/planner.md").read_text())
 
